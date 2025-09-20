@@ -1,9 +1,104 @@
 #!/bin/zsh
+
+# Scrolling text function
+scroll_text() {
+	local text="$1"
+	local max_width="$2"
+	local scroll_speed="${3:-1}"  # Default scroll speed (frames per character)
+	
+	# If text is shorter than max width, just return it padded
+	if [ ${#text} -le $max_width ]; then
+		printf "%-${max_width}s" "$text"
+		return
+	fi
+	
+	# Calculate scroll position based on frame counter - make it much faster
+	local frame_counter=${4:-0}
+	local scroll_pos=$((frame_counter * 4))  # Move 4 characters per frame
+	local text_length=${#text}
+	
+	# Create a circular text by repeating the text with spaces for smooth transition
+	local circular_text="${text}    "  # Add spaces for smooth transition
+	local circular_length=${#circular_text}
+	
+	# Use modulo to create truly continuous scrolling (no reset to 0)
+	scroll_pos=$((scroll_pos % circular_length))
+	
+	# Extract the visible portion from circular text
+	local visible_text="${circular_text:$scroll_pos:$max_width}"
+	
+	# If we don't have enough characters, wrap around
+	if [ ${#visible_text} -lt $max_width ]; then
+		local remaining=$((max_width - ${#visible_text}))
+		local wrap_text="${circular_text:0:$remaining}"
+		visible_text="${visible_text}${wrap_text}"
+	fi
+	
+	# Ensure we always return exactly max_width characters
+	printf "%-${max_width}s" "$visible_text"
+}
+
 np(){
 	init=1
 	help='false'
+	square_mode='false'
+	scroll_frame=0
+	# Default size (can be overridden with -s small, -s large, -s xl, -s square)
+	art_width=31
+	art_height=14
+
+	# Parse arguments
+	while [[ $# -gt 0 ]]; do
+		case $1 in
+			-s)
+				if [ "$2" != "" ]; then
+					case "$2" in
+						"small")
+							art_width=25
+							art_height=12
+							shift 2
+							;;
+						"large")
+							art_width=45
+							art_height=20
+							shift 2
+							;;
+						"xl")
+							art_width=60
+							art_height=28
+							shift 2
+							;;
+						"square")
+							art_width=35
+							art_height=18
+							square_mode='true'
+							shift 2
+							;;
+						*)
+							echo "Invalid size option. Use: small, large, xl, square"
+							return
+							;;
+					esac
+				else
+					echo "Size option requires an argument"
+					return
+				fi
+				;;
+			-t)
+				# Text mode flag - will be handled later
+				shift
+				;;
+			*)
+				# Unknown option, keep for compatibility
+				break
+				;;
+		esac
+	done
 	while :
 	do
+		# Increment scroll frame counter for scrolling text
+		scroll_frame=$((scroll_frame + 1))
+		
 		vol=$(osascript -e 'tell application "Music" to get sound volume')
 		shuffle=$(osascript -e 'tell application "Music" to get shuffle enabled')
 		repeat=$(osascript -e 'tell application "Music" to get song repeat')
@@ -22,7 +117,14 @@ s                       Toggle shuffle
 r                       Toggle song repeat
 q                       Quit np
 Q                       Quit np and Music.app
-?                       Show / hide keybindings"
+?                       Show / hide keybindings
+
+Size options:
+np -s small             Use small album art (25x12)
+np -s large             Use large album art (45x20)
+np -s xl                Use extra large album art (60x28)
+np -s square            Use square layout with text below (35x18)
+np -t                   Text mode (no album art)"
 		duration=$(osascript -e 'tell application "Music" to get {player position} & {duration} of current track')
 		arr=(`echo ${duration}`)
 		curr=$(cut -d . -f 1 <<< ${arr[-2]})
@@ -36,12 +138,11 @@ Q                       Quit np and Music.app
 		fi
 		if (( curr < 2 || init == 1 )); then
 			init=0
+			# Reset scroll position when track changes
+			scroll_frame=0
 			name=$(osascript -e 'tell application "Music" to get name of current track')
-			name=${name:0:50}
 			artist=$(osascript -e 'tell application "Music" to get artist of current track')
-			artist=${artist:0:50}
 			record=$(osascript -e 'tell application "Music" to get album of current track')
-			record=${record:0:50}
 			end=$(cut -d . -f 1 <<< ${arr[-1]})
 			endMin=$(echo $(( end / 60 )))
 			endSec=$(echo $(( end % 60 )))
@@ -58,9 +159,9 @@ Q                       Quit np and Music.app
 				rm ~/Library/Scripts/tmp*
 				osascript ~/Library/Scripts/album-art.applescript
 				if [ -f ~/Library/Scripts/tmp.png ]; then
-					art=$(clear; viu -b ~/Library/Scripts/tmp.png -w 31 -h 14)
+					art=$(clear; viu -b ~/Library/Scripts/tmp.png -w $art_width -h $art_height)
 				else
-					art=$(clear; viu -b ~/Library/Scripts/tmp.jpg -w 31 -h 14)
+					art=$(clear; viu -b ~/Library/Scripts/tmp.jpg -w $art_width -h $art_height)
 				fi
 			fi
 			cyan=$(echo -e '\e[00;36m')
@@ -95,9 +196,46 @@ Q                       Quit np and Music.app
 		if [ "$1" = "-t" ]
 		then
 			clear
-			paste <(printf '%s\n' "$name" "$artist - $record" "$shuffleIcon $repeatIcon $(echo $currMin:$currSec ${cyan}${prog}${nocolor}${progBG} $endMin:$endSec)" "$volIcon $(echo "${magenta}$vol${nocolor}$volBG")") 
+			# Use scrolling text for long track names and artist-album info
+			scrolled_name=$(scroll_text "$name" 50 8 $scroll_frame)
+			scrolled_artist_record=$(scroll_text "$artist - $record" 50 8 $scroll_frame)
+			paste <(printf '%s\n' "$scrolled_name" "$scrolled_artist_record" "$shuffleIcon $repeatIcon $(echo $currMin:$currSec ${cyan}${prog}${nocolor}${progBG} $endMin:$endSec)" "$volIcon $(echo "${magenta}$vol${nocolor}$volBG")")
+		elif [ $square_mode = 'true' ]
+		then
+			clear
+			# Display album art centered
+			printf %s "$art"
+			echo ""
+			# Display track info below art with scrolling text
+			scrolled_name=$(scroll_text "$name" 35 8 $scroll_frame)
+			scrolled_artist_record=$(scroll_text "$artist - $record" 35 8 $scroll_frame)
+			printf '%s\n' "$scrolled_name"
+			printf '%s\n' "$scrolled_artist_record"
+			printf '%s\n' "$shuffleIcon $repeatIcon $(echo $currMin:$currSec ${cyan}${prog}${nocolor}${progBG} $endMin:$endSec)"
+			printf '%s\n' "$volIcon $(echo "${magenta}$vol${nocolor}$volBG")"
+		elif [ $art_width -gt 31 ] || [ $art_height -gt 14 ]
+		then
+			# For larger custom sizes, display text below album art
+			clear
+			printf %s "$art"
+			echo ""
+			# Adjust text width based on album art width
+			text_width=$art_width
+			if [ $text_width -gt 80 ]; then
+				text_width=80
+			fi
+			# Use scrolling text for long track names and artist-album info
+			scrolled_name=$(scroll_text "$name" $text_width 8 $scroll_frame)
+			scrolled_artist_record=$(scroll_text "$artist - $record" $text_width 8 $scroll_frame)
+			printf '%s\n' "$scrolled_name"
+			printf '%s\n' "$scrolled_artist_record"
+			printf '%s\n' "$shuffleIcon $repeatIcon $(echo $currMin:$currSec ${cyan}${prog}${nocolor}${progBG} $endMin:$endSec)"
+			printf '%s\n' "$volIcon $(echo "${magenta}$vol${nocolor}$volBG")"
 		else
-			paste <(printf %s "$art") <(printf %s "") <(printf %s "") <(printf %s "") <(printf '%s\n' "$name" "$artist - $record" "$shuffleIcon $repeatIcon $(echo $currMin:$currSec ${cyan}${prog}${nocolor}${progBG} $endMin:$endSec)" "$volIcon $(echo "${magenta}$vol${nocolor}$volBG")") 
+			# Default layout for standard size with scrolling text
+			scrolled_name=$(scroll_text "$name" 50 8 $scroll_frame)
+			scrolled_artist_record=$(scroll_text "$artist - $record" 50 8 $scroll_frame)
+			paste <(printf %s "$art") <(printf %s "") <(printf %s "") <(printf %s "") <(printf '%s\n' "$scrolled_name" "$scrolled_artist_record" "$shuffleIcon $repeatIcon $(echo $currMin:$currSec ${cyan}${prog}${nocolor}${progBG} $endMin:$endSec)" "$volIcon $(echo "${magenta}$vol${nocolor}$volBG")")
 		fi
 		if [ $help = 'true' ]; then
 			printf '%s\n' "$keybindings"
@@ -318,6 +456,10 @@ usage="Usage: am.sh [function] [-grouping] [name]
                         (Music.app track must be actively
 			playing or paused)
   np -t			Open in text mode (disables album art)
+  np -s small           Open with small album art (25x12)
+  np -s large           Open with large album art (45x20)
+  np -s xl              Open with extra large album art (60x28)
+  np -s square          Open with square layout and text below (35x18)
  
   np keybindings:
 

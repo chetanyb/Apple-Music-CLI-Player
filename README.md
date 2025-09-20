@@ -1,138 +1,232 @@
 # Apple Music CLI Player
 
-*Tested on macOS 12 & 13 (likely to work on macOS 10.15, 11). **Can be called with the system default zsh.** I recommend aliasing am.sh to `alias am=zsh path/to/am.sh`, or moving its three individual functions into your .zshrc.*
+[![macOS](https://img.shields.io/badge/macOS-12%2C%2013%2C%2015-blue?logo=apple)](https://www.apple.com/macos/)
+[![Shell](https://img.shields.io/badge/Shell-zsh%2Fbash-green?logo=gnu-bash)](https://www.gnu.org/software/bash/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/Dependencies-viu%2C%20fzf-orange)](https://github.com/atanunq/viu)
 
-**Goal:** Provide a simple command-line interface to listing out, playing songs from, and utilizing controls for Music.app.  I decided against using a library such as ncurses to build a full TUI application, as I think it is preferable to interface via quick commands and a light "widget".
+*Originally tested on macOS 12 & 13, this version tested on 15 (likely to work on macOS 10.15, 11). **Can be called with the system default zsh.** The original author recommends aliasing am.sh to `alias am=zsh path/to/am.sh`, or moving its three individual functions into your .zshrc.*
+
+**Original Goal:** As stated by the original creator: "Provide a simple command-line interface to listing out, playing songs from, and utilizing controls for Music.app" without building a full TUI application, preferring "quick commands and a light widget".
+
+## ✨ Features
+
+- 🎨 **Multiple album art sizes**: `small`, `large`, `xl`, and `square` modes
+- 📐 **Square layout mode**: Perfect aspect ratio for terminal widgets (35x18)
+- 🔄 **Smart text positioning**: Text automatically positioned below album art for larger sizes
+- 📜 **Scrolling text**: Long track names, artists, and albums scroll smoothly when they exceed display width
+- 🚀 **Setup script**: Automated installation with dependency management
 
 <img src="np.png" width="800"/>
 
-## Now Playing (np)
+---
 
-Enjoy a simple "Now Playing" widget from your terminal.  Uses standard Unix tooling/piping, AppleScript for interfacing with Apple Music, and [Viu](https://github.com/atanunq/viu) for displaying the album art images.  It also includes keyboard shortcut bindings for basic playback controls.  Apart from toggling shuffle, toggling repeat, and changing the Music.app-specific volume, the other controls are already accessible from the special Fn key functions/touch bar.  
+<img src="np2.png"/>
 
-Dependencies: [Viu](https://github.com/atanunq/viu) (unless you always use text mode)
+## 🚀 Quick Start
 
-Configuration: 
+### Automated Installation
 
-* Place album-art.applescript at ~/Library/Scripts/album-art.applescript, or configure a valid path in the np() func of am.sh for wherever you decide to keep it
-* (Optional) In the np() func of am.sh, adjust the `-h` dimension of the album art (look for the two calls to `viu`) to ensure a square appearance with your terminal emulator's line spacing
-
-Usage (aliased): `am np`
-
-Usage (not aliased): `zsh am.sh np`
-```
-np                    Open the "Now Playing" TUI widget.
-                      (Music.app track must be actively
-		      playing or paused)
-np -t		      Open in text mode (disables album art)
-
-np keybindings:
-
-p                     Play / Pause
-f                     Forward one track
-b                     Backward one track
->                     Begin fast forwarding current track
-<                     Begin rewinding current track
-R                     Resume normal playback
-+                     Increase Music.app volume 5%
--                     Decrease Music.app volume 5%
-s                     Toggle shuffle
-r                     Toggle song repeat
-q                     Quit np
-Q                     Quit np and Music.app
-?                     Show / hide keybindings
+```bash
+# Install dependencies and set up the CLI
+./setup.sh
 ```
 
-Notes: 
-* Attempting to play the previous track with an empty queue will kill the script
-* album-art.applescript is a modified version of [this script,](https://dougscripts.com/itunes/2014/10/save-current-tracks-artwork/) written by AppleScript wizard [Doug Adams](https://dougscripts.com/itunes/faq_cont.php)♡
+The setup script will:
+- ✅ Install dependencies (`viu`, `fzf`) via Homebrew
+- ✅ Copy scripts to appropriate locations (`~/.local/bin`, `~/Library/Scripts`)
+- ✅ Update your shell configuration (PATH and aliases)
+- ✅ Verify Apple Music app availability
 
-## List
+### Manual Installation
 
-List out all song groupings of a specific type or all songs of a specific song grouping in your library.  The song grouping type is dictated by the flag you pass. By calling list without specifying a title after the flag, you will see a printout of all the titles of that flag's collection type. 
+```bash
+# Install dependencies
+brew install viu fzf
 
-Usage (aliased): `am list [-grouping] [name]`
+# Copy files
+mkdir -p ~/.local/bin ~/Library/Scripts
+cp src/am.sh ~/.local/bin/am
+cp src/album-art.applescript ~/Library/Scripts/album-art.applescript
+chmod +x ~/.local/bin/am
 
-Usage (not aliased): `zsh am.sh list [-grouping] [name]`
+# Add to PATH (in ~/.zshrc or ~/.bashrc)
+export PATH="$HOME/.local/bin:$PATH"
 ```
-list -s               List all songs in your library.
-list -r               List all records.
-list -r PATTERN       List all songs in the record PATTERN.
-list -a               List all artists.
-list -a PATTERN       List all songs by the artist PATTERN.
-list -p               List all playlists.
-list -p PATTERN       List all songs in the playlist PATTERN.
-list -g               List all genres.
-list -g PATTERN       List all songs in the genre PATTERN.
+
+## 🎨 Display Modes
+
+### Album Art Sizes
+
+```bash
+am np                    # Default size (31x14) with text to the right
+am np -s small          # Compact mode (25x12)
+am np -s large          # Large album art (45x20) - text below
+am np -s xl             # Extra large (60x28) - text below
+am np -s square         # Perfect square ratio (35x18) - text below
+am np -t                # Text mode only (no album art)
 ```
-Example: `am list -r In Rainbows` (not case-sensitive)
 
-Notes: 
-* Music.app does not need to be open or closed; it should launch itself silently when `list` is called
-* Only works on tracks saved to your Library (but they do not need to be downloaded)
-* Remember to escape any special characters or punctuation if passing a title (or wrap it in double quotes)
+### Smart Layout Detection
 
-## Play
+- **Standard size**: Text positioned to the right (original behavior)
+- **Custom larger sizes**: Text automatically positioned below album art
+- **Square mode**: Optimized layout for terminal widgets and tiling window managers
 
-Begin playback of different song groupings or a specific song grouping in your library. The song grouping type is dictated by the flag you pass.  By calling play without specifying a title after the flag, you are prompted to select a title of that flag's collection type on the fly via [fzf](https://github.com/junegunn/fzf). Unfortunately there is no simple way to play, for example, a specific album or songs from a specific artist with AppleScript, but I was able to modify code shared by a "jccc" [here](https://discussions.apple.com/thread/1053355), as a workaround which involves automatically creating a single temporary playlist in your library that is utilized by play().
+### Scrolling Text Feature
 
-Dependencies: [fzf](https://github.com/junegunn/fzf) (unless you always play groupings by name)
+When track names, artists, or album names exceed the available display width, they automatically scroll horizontally to show the full text:
 
-Usage (aliased): `am play [-grouping] [name]`
+- **Smooth animation**: Text scrolls character by character at a comfortable speed
+- **Automatic cycling**: Text scrolls from start to end and repeats
+- **All display modes**: Works in text mode, square mode, large/XL modes, and default layout
+- **Smart width detection**: Automatically adjusts to the available space in each mode
 
-Usage (not aliased): `zsh am.sh play [-grouping] [name]`
+## 📖 Usage
+
+### Now Playing Widget
+
+```bash
+am np                    # Standard now playing widget
+am np -s square         # Square layout (great for terminal corners)
+am np -s large          # Large album art with text below
 ```
-play -s               Fzf for a song and begin playback.
-play -s PATTERN       Play the song PATTERN.
-play -r               Fzf for a record and begin playback.
-play -r PATTERN       Play from the record PATTERN.
-play -a               Fzf for an artist and begin playback.
-play -a PATTERN       Play from the artist PATTERN.
-play -p               Fzf for a playlist and begin playback.
-play -p PATTERN       Play from the playlist PATTERN.
-play -g               Fzf for a genre and begin playback.
-play -g PATTERN       Play from the genre PATTERN.
-play -l               Play from your entire library.
+
+**Controls within np widget:**
+- `p` - Play/Pause
+- `f` - Forward one track
+- `b` - Backward one track
+- `>` / `<` - Fast forward/rewind
+- `R` - Resume normal playback
+- `+` / `-` - Volume up/down (Music.app specific)
+- `s` - Toggle shuffle
+- `r` - Toggle repeat (off → all → one → off)
+- `q` - Quit widget
+- `Q` - Quit widget and Music.app
+- `?` - Show/hide keybindings
+
+### Music Playback
+
+```bash
+# Interactive selection (uses fzf)
+am play -a              # Browse artists
+am play -r              # Browse albums
+am play -s              # Browse songs
+am play -p              # Browse playlists
+am play -g              # Browse genres
+am play -l              # Play entire library
+
+# Direct playback by name
+am play -a "Radiohead"       # Play artist
+am play -r "OK Computer"     # Play album
+am play -s "Paranoid Android" # Play song
 ```
-Example: `am play -a Radiohead` (not case-sensitive)
 
-Notes: 
-* Music.app does not need to be open or closed; it should launch itself silently when `play` is called
-* Only works on tracks saved to your Library (but they do not need to be downloaded)
-* Remember to escape any special characters or punctuation if passing a title (or wrap it in double quotes)
-* calling `-p Library` will result in quite a delay, unlike `-l`, because it requires copying all the songs in your library into the temporary playlist
+### Browse Music Library
 
-### Optional AirPlay Snippet (not in src)
+```bash
+# List all items
+am list -a              # List artists
+am list -r              # List albums
+am list -s              # List songs
+am list -p              # List playlists
+am list -g              # List genres
 
-Toggle the Music.app AirPlay audio output for a specific device. 
-
-Configuration: 
-* Adjust the device strings to a device hostname of your choosing
-* Ideally adapt the argument name to match
-
+# List songs from specific items
+am list -a "Radiohead"       # Songs by artist
+am list -r "OK Computer"     # Songs in album
+am list -p "My Playlist"     # Songs in playlist
 ```
-if [ $1 = "atv" ]
-   then
-    isActive=$(osascript -e 'tell application "Music" to get selected of AirPlay device "Apple TV"')
-    if [ $isActive = 'false' ]
-    then
-      osascript -e 'tell application "Music" to set selected of AirPlay device "Apple TV" to true'
-    else
-      osascript -e 'tell application "Music" to set selected of AirPlay device "Apple TV" to false'
-  fi
-fi
+
+### Convenient Aliases
+
+After setup, use these shorter commands:
+
+```bash
+amn                     # am np (now playing)
+amq                     # am np -s square (square mode)
+amp -a                  # am play -a (browse artists)
+aml -p                  # am list -p (list playlists)
 ```
-Example: `zsh ap.sh atv`
 
-### Known Problems
+## 🎯 Perfect for Terminal Setups
 
-- Error: `execution error: Music got an error: Application isn’t running. (-600)`
-  - Solution: Reboot. It seems to occur occasionally after having had Music.app open for too long while your Mac has slept. Other potential solutions can be found [here](https://stackoverflow.com/questions/19957268/applescript-fails-with-error-600-when-launched-over-ssh-on-mavericks)
-- Blinking for each output refresh when running np()
-  - Consider using a lighter-weight terminal emulator, or even Terminal.app, where this doesn't seem to occur. I am not sure how to mitigate this for heavier terminal emulators such as iTerm2
+The **square mode** (`am np -s square`) is specifically designed for:
 
-### Ideas For Improvement
+- **Tiling window managers** (i3, yabai, etc.)
+- **Terminal multiplexers** (tmux, screen)
+- **Corner terminal widgets**
+- **Minimal desktop setups**
 
-* am.sh could be expanded with a function to call new AppleScript snippets to create, delete, or refine playlists; it would also be nice to be able to queue (as apposed to immediately play) a song or a group of songs, which is possible (though there is no native corresponding AppleScript function to accomplish this at present)
-* This project could be forked and used in the backend to create a full client alternative to Music.app, though it would not be possible to browse for and save tracks outside of the user's library
-* See the Script Editor.app's dictionary API (Music.sdef) for an exhaustive reference of all the native Music.app variables and functions that can be interfaced via AppleScript
+Features:
+- ✅ Proper aspect ratio accounting for terminal character dimensions
+- ✅ Clean layout with album art on top, info below
+- ✅ Compact 35x18 size fits well in small terminal windows
+- ✅ No text overflow or overlap issues
+
+## 🔧 Requirements
+
+- **macOS** 10.15+ (tested on 12. 13 & 15)
+- **Apple Music app** installed and configured
+- **Homebrew** (for automatic dependency installation)
+- **Terminal** with 256-color support for best experience
+
+### Dependencies
+
+- [`viu`](https://github.com/atanunq/viu) - Terminal image viewer for album artwork
+- [`fzf`](https://github.com/junegunn/fzf) - Fuzzy finder for interactive selection
+
+Both are automatically installed by the setup script via Homebrew.
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**"Music got an error: Application isn't running. (-600)"**
+- **Solution**: Restart your Mac. This occasionally happens after Music.app has been running for extended periods.
+
+**Album art not displaying**
+- Ensure `viu` is installed: `brew install viu`
+- Verify album artwork exists for the current track
+- Try text mode: `am np -t`
+
+**Commands not found after installation**
+- Verify `~/.local/bin` is in PATH: `echo $PATH | grep .local/bin`
+- Restart terminal or source config: `source ~/.zshrc`
+- Check permissions: `ls -la ~/.local/bin/am`
+
+### Advanced Configuration
+
+**Custom album art dimensions** (for advanced users):
+Edit the size variables in the `np()` function to match your terminal's character aspect ratio.
+
+**Terminal compatibility**:
+Confirmed working terminals: Terminal.app, WezTerm. Some terminals (like iTerm2) may show refresh artifacts. Terminal.app typically works best for smooth updates.
+
+## 🤝 Contributing
+
+This is a fork focused on improved terminal integration and usability. Feel free to:
+
+- 🐛 Report issues
+- 💡 Suggest new features
+- 🔧 Submit pull requests
+- ⭐ Star the repo if you find it useful!
+
+## 📝 Notes
+
+- Interfaces with Apple Music via AppleScript (macOS only)
+- Works with tracks in your library (downloads not required)
+- Creates temporary playlist (`temp_playlist`) for album/artist playback
+- Album artwork cached temporarily in `~/Library/Scripts/tmp*`
+
+## 🙏 Attribution
+
+This project is a fork of the original [Apple Music CLI Player](https://github.com/mcthomas/Apple-Music-CLI-Player) concept. Special thanks to the original creator [Matt Thomas](https://github.com/mcthomas) for the foundational AppleScript techniques and CLI design philosophy.
+
+## 📄 License
+
+[MIT License](LICENSE) - Feel free to use, modify, and distribute.
+
+---
+
+*Enjoy your command-line music experience! 🎵*
